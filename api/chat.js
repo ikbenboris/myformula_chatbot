@@ -1,6 +1,21 @@
 export default async function handler(req, res) {
+  // CORS headers for all responses
+  const setCorsHeaders = () => {
+    res.setHeader("Access-Control-Allow-Origin", "*"); // or your shop domain
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  };
+
+  setCorsHeaders();
+
+  // Handle preflight
+  if (req.method === "OPTIONS") {
+    // Just say "OK" to the browser
+    return res.status(200).end();
+  }
+
+  // Only allow POST for real requests
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
@@ -11,7 +26,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing message" });
     }
 
-    // Call OpenAI using your secret from env variable
+    // Call OpenAI
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -24,7 +39,7 @@ export default async function handler(req, res) {
           {
             role: "system",
             content:
-              "You are a helpful assistant for this Shopify store. Answer only questions related to the store, its products, shipping and policies."
+              "You are a helpful assistant for a Shopify store. Answer only store related questions (products, ingredients, shipping, returns, etc.)."
           },
           { role: "user", content: message }
         ]
@@ -37,18 +52,9 @@ export default async function handler(req, res) {
       data?.choices?.[0]?.message?.content ||
       "Sorry, I could not generate a reply.";
 
-    // CORS: allow being called from your storefront
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Content-Type", "application/json");
-
     return res.status(200).json({ reply });
   } catch (error) {
     console.error("GPT error:", error);
-
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
     return res.status(500).json({ error: "Server error" });
   }
 }
