@@ -10,9 +10,6 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
       errorDetails.queryParameters = req.query;
       errorDetails.fullUrl = req.url; // Optional: show the full URL that was requested
-    }
-    // You could also include req.headers for more debug info if needed
-
     return res.status(405).json(errorDetails);
   }
 
@@ -67,4 +64,4 @@ export default async function handler(req, res) {
 
     return res.status(500).json({ error: "Server error" });
   }
-
+}
