@@ -1,33 +1,51 @@
-export default async function handler(req, res) {
-  // CORS headers for all responses
-  const setCorsHeaders = () => {
-    res.setHeader("Access-Control-Allow-Origin", "*"); // or your shop domain
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  };
+// api/chat.js
 
-  setCorsHeaders();
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
-  // Handle preflight
+module.exports = async function handler(req, res) {
+  // Always set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*"); // later you can restrict to your shop domain
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // Handle preflight OPTIONS request
   if (req.method === "OPTIONS") {
-    // Just say "OK" to the browser
-    return res.status(200).end();
+    res.statusCode = 200;
+    return res.end();
   }
 
-  // Only allow POST for real requests
+  // Only allow POST for real calls
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.statusCode = 405;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ error: "Method not allowed" }));
+  }
+
+  // Read and parse JSON body manually (req.body is not auto parsed here)
+  let bodyStr = "";
+  for await (const chunk of req) {
+    bodyStr += chunk;
+  }
+
+  let message;
+  try {
+    const body = JSON.parse(bodyStr || "{}");
+    message = body.message;
+  } catch (e) {
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ error: "Invalid JSON body" }));
+  }
+
+  if (!message) {
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ error: "Missing message" }));
   }
 
   try {
-    const { message } = req.body || {};
-
-    if (!message) {
-      return res.status(400).json({ error: "Missing message" });
-    }
-
     // Call OpenAI
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(OPENAI_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -39,7 +57,7 @@ export default async function handler(req, res) {
           {
             role: "system",
             content:
-              "You are a helpful assistant for a Shopify store. Answer only store related questions (products, ingredients, shipping, returns, etc.)."
+              "You are a helpful assistant for a Shopify store. Answer only questions related to the store, its products, ingredients, shipping, returns and usage."
           },
           { role: "user", content: message }
         ]
@@ -52,9 +70,13 @@ export default async function handler(req, res) {
       data?.choices?.[0]?.message?.content ||
       "Sorry, I could not generate a reply.";
 
-    return res.status(200).json({ reply });
-  } catch (error) {
-    console.error("GPT error:", error);
-    return res.status(500).json({ error: "Server error" });
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ reply }));
+  } catch (err) {
+    console.error("GPT error:", err);
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ error: "Server error" }));
   }
-}
+};
