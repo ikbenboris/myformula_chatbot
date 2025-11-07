@@ -1,22 +1,23 @@
 export default async function handler(req, res) {
-  // Handle CORS preflight
+  // Debug log to see what’s actually being sent
+  console.log("Incoming request:", {
+    method: req.method,
+    headers: req.headers,
+    body: req.body
+  });
+
+  // Handle preflight CORS
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     return res.status(200).end();
   }
 
-  if (req.method === "GET") {
-      errorDetails.queryParameters = req.query;
-      errorDetails.fullUrl = req.url; // Optional: show the full URL that was requested
-    return res.status(405).json(errorDetails);
-  }
-
-  // Restrict to POST
+  // Only allow POST
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: req.method });
+    res.setHeader("Allow", "POST, OPTIONS");
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
   }
 
   try {
@@ -46,22 +47,14 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-
-    const reply =
-      data?.choices?.[0]?.message?.content ||
-      "Sorry, I could not generate a reply.";
+    const reply = data?.choices?.[0]?.message?.content || "Sorry, I could not generate a reply.";
 
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.setHeader("Content-Type", "application/json");
-
     return res.status(200).json({ reply });
   } catch (error) {
     console.error("GPT error:", error);
-
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
     return res.status(500).json({ error: "Server error" });
   }
 }
